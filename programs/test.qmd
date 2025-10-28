@@ -3,6 +3,7 @@ title: "Le Test Qubs"
 format: 
   html:
     embed-resources: true
+    standalone: true
 editor: visual
 ---
 
