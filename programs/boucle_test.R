@@ -2,6 +2,6 @@ library(here)
 library(quarto)
 
 quarto::quarto_render(input =  here::here("test.qmd"),
-                      output_file = "test.html")
+                      output_file = "index.html")
 
-file.rename("test.html", file.path("docs", "test.html"))
+file.rename("index.html", file.path("docs", "index.html"))
