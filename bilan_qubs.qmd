@@ -1,0 +1,885 @@
+---
+title: "Bilan Qubs"
+format: 
+  html:
+    self-contained: true
+    toc: true
+editor: visual
+execute:
+  echo: false
+  warning: false
+---
+
+```{r data}
+library(here)
+library(dplyr)
+library(ggplot2)
+library(sf)
+library(tmap)
+library(DT)
+library(reshape2)
+library(data.table)
+
+
+#load functions to fetch data
+source(here::here("functions", "create_df_qubs.R"))
+
+
+dir.create(here::here("reporting"))
+```
+
+<br>
+
+**DATE DU DERNIER EXPORT DE DONNEES : `r format(Sys.Date(), format="%d %B %Y")`**
+
+<br>
+
+## Chiffres clés
+
+::::: panel-tabset
+### Synthèse sessions
+
+```{r tableau_chiffres}
+## TABLEAU RESUME DONNEES QUBS
+synthese_session_qubs <- dt_qubs %>%
+  group_by(protocole) %>%
+  reframe(nb_sites = n_distinct(site_id),
+          nb_users = n_distinct(user_id),
+          nb_sessions = n_distinct(session_id),
+          nb_sessions_vides = sum(presence_organisme == 0))
+
+DT::datatable(synthese_session_qubs,
+              colnames = c("Protocole", "Sites", "Participants", "Sessions",
+                           "Sessions\nvides"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+```
+
+::: {.callout-note collapse="true" title="Mêmes chiffres déclinés par année"}
+```{r tableau_chiffres_annee}
+## TABLEAU RESUME DONNEES QUBS
+synthese_session_qubs <- dt_qubs %>%
+  mutate(annee = year(session_date)) %>%
+  group_by(protocole, annee) %>%
+  reframe(nb_sites = n_distinct(site_id),
+          nb_users = n_distinct(user_id),
+          nb_sessions = n_distinct(session_id),
+          nb_sessions_vides = sum(presence_organisme == 0))
+
+DT::datatable(synthese_session_qubs,
+              colnames = c("Protocole", "Sites", "Participants", "Sessions",
+                           "Sessions\nvides"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+```
+:::
+
+### Répartition participants/protocoles
+
+Permet de rendre compte de l'overlap de participation entre protocoles. Combien de participants ont appliqué plusieurs protocoles Qubs ?
+
+```{r users_protocoles}
+qubs_protocoles <- dt_qubs %>% select(site_id, protocole) %>% distinct() %>% group_by(site_id) %>% summarise(nb_protocoles = n_distinct(protocole)) %>% group_by(nb_protocoles) %>% reframe(nb_sites = n_distinct(site_id))
+                                                                  
+DT::datatable(qubs_protocoles,
+              colnames = c("Combinaison\nprotocoles", "Nombre de\nsites"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+```
+
+### Tableau observations
+
+```{r tableau_obs}
+## TABLEAU RESUME OBS QUBS
+synthese_obs_qubs <- dt_qubs %>%
+  group_by(protocole) %>%
+  reframe(nb_taxons_qubs = n_distinct(na.omit(taxon)),
+          nb_taxons_identifies = sum(!is.na(taxon)),
+          nb_taxons_non_identifies = sum(is.na(taxon) & presence_organisme == 1),
+          `%_valides` = round(sum(taxon_valide)/sum(presence_organisme == 1)*100, 2)) %>%
+  mutate(nb_photos = NA) # initialiser la colonne nb de photo
+
+
+#ajouter les nb de photos de taxons
+synthese_obs_qubs$nb_photos[synthese_obs_qubs$protocole == "Aspifaune"] <- length(unique(dt_aspifaune$url_photo_taxon))
+synthese_obs_qubs$nb_photos[synthese_obs_qubs$protocole == "Noctambules"] <- length(unique(dt_noctambules$url_photo_taxon))
+synthese_obs_qubs$nb_photos[synthese_obs_qubs$protocole == "Opération escargots"] <- sum(length(unique(dt_escargots$url_photo_taxon_dessus)), length(unique(dt_escargots$url_photo_taxon_dessous)), length(unique(dt_escargots$url_photo_taxon_cote)))
+synthese_obs_qubs$nb_photos[synthese_obs_qubs$protocole == "En quête de vers"] <- length(unique(dt_vers$url_photo_taxon))
+                                                                                 
+DT::datatable(synthese_obs_qubs,
+              colnames = c("Protocole", "Taxons Qubs\ndifférents", "Organismes\nidentifiés", "Organismes non\nidentifiés", 
+                           "Pourcentage identifications\nvalidées", "Nombre de\nphotos"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+```
+
+::: {.callout-note collapse="true" title="Mêmes chiffres déclinés par année"}
+```{r tableau_chiffres_obs_annee}
+## TABLEAU RESUME OBS QUBS
+synthese_obs_qubs <- dt_qubs %>%
+  mutate(annee = year(session_date)) %>%
+  group_by(protocole, annee) %>%
+  reframe(nb_taxons_qubs = n_distinct(na.omit(taxon)),
+          nb_taxons_identifies = sum(!is.na(taxon)),
+          nb_taxons_non_identifies = sum(is.na(taxon) & presence_organisme == 1),
+          `%_valides` = round(sum(taxon_valide)/sum(presence_organisme == 1)*100, 2))
+
+# Création d'un dataframe avec l'ensemble des url des photos obligatoires par protocole et par année
+photos <- rbind(dt_aspifaune %>% # url photo Aspifaune
+                  mutate(annee = year(session_date)) %>% select(protocole, annee, url_photo_taxon) %>% 
+                  distinct() %>% na.omit(),
+                dt_noctambules %>% # url photo Noctambules
+                  mutate(annee = year(session_date)) %>% select(protocole, annee, url_photo_taxon) %>% 
+                  distinct() %>% na.omit(),
+                dt_vers %>% # url photo En quête de Vers
+                  mutate(annee = year(session_date)) %>% select(protocole, annee, url_photo_taxon) %>%
+                  distinct() %>% na.omit(),
+                dt_escargots %>% # url photo Opération Escargots
+                  mutate(annee = year(session_date)) %>% select(protocole, annee, url_photo_taxon_dessous) %>%
+                  rename(url_photo_taxon = url_photo_taxon_dessous) %>% distinct() %>% na.omit()) %>%
+  group_by(protocole, annee) %>%
+  reframe(nb_photos = n_distinct(url_photo_taxon))
+
+# Jointure avec le tableau de synthèse
+synthese_obs_qubs <- synthese_obs_qubs %>% left_join(photos, by = c("protocole", "annee"))
+
+DT::datatable(synthese_obs_qubs,
+              colnames = c("Protocole", "Année", "Taxons Qubs\ndifférents", "Organismes\nidentifiés", 
+                           "Organismes non\nidentifiés", 
+                           "Pourcentage identifications\nvalidées", "Nombre de\nphotos"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+```
+:::
+:::::
+
+<br>
+
+## Types de sites
+
+La figure ci-dessous présente la distribution des sessions d'observation suivant le type de site. Les résultats sont déclinés par protocole, et représentés en proportion de l'ensemble des sessions d'observation.
+
+```{r}
+# VERSION SANS REGROUPEMENT (tous les types de site)
+# dt_qubs %>%
+#   group_by(protocole, site_type) %>%
+#   reframe(nb_sessions = n_distinct(session_id)) %>%
+#   ggplot() +
+#     geom_bar(aes(x = protocole, y = nb_sessions, fill = site_type),
+#              position = "fill", stat = "identity") +
+#   coord_flip() +
+#   scale_y_continuous(labels = scales::percent) +
+#   theme_bw() +
+#   labs(y = "Proportion des sessions\nd'observation", x = "Protocole",
+#        fill = "Type de site")
+
+# VERSION avec regroupement de certaines catégories pour simplifier
+prop_type_sites <- dt_qubs %>% 
+  mutate(site_type = recode(site_type,
+                            "Site d'activité maraichère" = "Autre"#,
+                            #"Espace vert d'entreprise, d'école ou de campus" = "Espace vert",
+                            #'Parc ou square (public)' = "Espace vert",
+                            ##"Jardin individuel, privatif" = "Jardin individuel ou partagé",
+                            #"Jardin partagé ou ouvrier" = "Jardin individuel ou partagé"
+                            )) %>%
+  group_by(protocole, site_type) %>%
+  reframe(nb_sessions = n_distinct(session_id)) %>%
+  ggplot() +
+    geom_bar(aes(x = protocole, y = nb_sessions, fill = site_type),
+             position = "fill", stat = "identity") +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent) +
+  theme_bw() +
+  labs(y = "Proportion des sessions\nd'observation", x = "Protocole",
+       fill = "Type de site")
+#Afficher le graphique
+prop_type_sites
+
+#sauvegarder le graphique au format SVG
+# ggsave(here::here("reporting", "types_de_sites.svg"), prop_type_sites)
+
+```
+
+::: {.callout-note collapse="true" title="Chiffres associés"}
+```{r}
+DT::datatable(dt_qubs %>%
+                group_by(protocole, site_type) %>%
+                reframe(nb_sessions = n_distinct(session_id)),
+              colnames = c("Protocole", "Type de site", "Nombre de sessions"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+```
+:::
+
+<br>
+
+## Stats spéciales par protocole
+
+::: panel-tabset
+### Aspifaune
+
+Dans le cadre du protocole Aspifaune on totalise `r length(unique(dt_aspifaune$session_id))*0.25*0.25` m² de surface totale aspirée !
+
+<br>
+
+### Noctambules
+
+```{r}
+#NOCTAMBULES : temps cumulé de pose de gobelet
+duree_pose_noctambules <- dt_noctambules %>%
+  mutate(date_fin = lubridate::ymd(lubridate::as_date(session_date)+lubridate::days(1))) %>%
+  mutate(date_pose = lubridate::as_datetime(paste(session_date, heure_pose_gobelet)),
+         date_releve = lubridate::as_datetime(paste(date_fin, heure_releve))) %>%
+  select(session_id, date_pose, date_releve) %>%
+  distinct() %>%
+  mutate(duree = difftime(date_releve, date_pose, units = "hours")) %>%
+  pull(duree) %>%
+  sum()
+```
+
+Dans le cadre du protocole Noctambules on peut fournir la durée totale de pose des gobelets la nuit : `r duree_pose_noctambules` heures.
+
+Sinon je trouve que c'est plus parlant de donner le nombre de nuits différentes échantillonnées : `r length(unique(dt_noctambules$session_date))` nuits échantillonnées depuis le lancement.
+
+<br>
+
+### Opération escargots
+
+-   Nombre total d'individus observés : `r sum(na.omit(as.numeric(dt_escargots$taxon_count)))`
+
+-   Nombre de taxons différents observés : `r length(unique(na.omit(dt_escargots$taxon)))`
+
+-   Nombre de taxons différents observés et validés : `r length(unique(na.omit(dt_escargots %>% filter(taxon_valide == 1) %>% pull(taxon))))`
+
+-   Nombre d'abris : `r length(unique(dt_escargots$abri_id))` (`r length(unique(dt_escargots$abri_id[dt_escargots$abri_typ == "Coupelle"]))` Coupelles ; `r length(unique(dt_escargots$abri_id[dt_escargots$abri_typ == "Planche"]))` Planches)
+
+<br>
+
+### En quête de vers
+
+Dans le cadre du protocole En quête de vers on totalise `r length(unique(dt_vers$session_id))*10` litres de sol trié !
+:::
+
+<br>
+
+## Communauté Qubs
+
+::: panel-tabset
+### Intractions au total
+
+Ce tableau donne pour chaque protocole le **nombre total** de validations, de suggestions, de ré-identifications et de commentaires sur participations.
+
+```{r}
+source(here::here("functions", "create_df_qubs_comments.R"))
+
+# remplacer le type de ressource "participation" en "session" pour s'aligner sur le standard
+dt_comments[dt_comments$resource_type == "participation",]$resource_type <- "session"
+
+#ajouter le protocole aux donnees sociales
+## melt le tableau dt_qubs sur observation_id et session_id 
+## pour obtenir une colonne resource_id equivalente à celle de la table qubs.comments
+dt_comments <- dt_comments %>% 
+  left_join(tidyr::pivot_longer(dt_qubs %>% 
+                                  select(observation_id, session_id, protocole) %>% 
+                                  rename(observation = observation_id,
+                                         session = session_id) %>%
+                                  distinct(), values_drop_na = TRUE,
+                                cols = c(session, observation),
+                                #rename columns to match the structure of dt_comments
+                                names_to = "resource_type",
+                                values_to = "resource_id"),
+            #jointure sur resource_id et resource_type
+            by = c("resource_id", "resource_type"))
+
+## tableau recapitulatif interactions sociales par protocole : nombre d'interactions
+DT::datatable(dt_comments %>% 
+                select(protocole, comment_type) %>% 
+                na.omit() %>% 
+                group_by(protocole) %>%
+                reframe(nb_validations = sum(comment_type == 'vote'),
+                        nb_suggestions = sum(comment_type == "suggestion"),
+                        nb_reidentifications = sum(comment_type == "reidentification"),
+                        nb_comm_sessions = sum(comment_type == "comment")),
+              colnames = c("Protocole", "Validations", "Suggestions", 
+                           "Ré-identifications", "Commentaires\nsession"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+
+```
+
+### Participant.es impliqués
+
+Ce tableau donne pour chaque protocole le **nombre de participant.es** ayant fait des validations, des suggestions, des ré-identifications ou des commentaires sur participation
+
+```{r}
+## tableau recapitulatif interactions sociales par protocole : nombre de users
+DT::datatable(dt_comments %>% 
+                select(protocole, comment_type, user_id) %>% 
+                na.omit() %>% 
+                group_by(protocole) %>%
+                reframe(nb_validations = n_distinct(user_id[comment_type == 'vote']),
+                        nb_suggestions = n_distinct(user_id[comment_type == "suggestion"]),
+                        nb_reidentifications = n_distinct(user_id[comment_type == "reidentification"]),
+                        nb_comm_sessions = n_distinct(user_id[comment_type == "comment"])),
+              colnames = c("Protocole", "Validations", 
+                           "Suggestions", "Ré-identifications", "Commentaires\nsession"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+          
+```
+:::
+
+<br>
+
+## Suggestions en attente
+
+Le tableau ci-dessous fournit pour chaque protocole le nombre d'observations avec une suggestion d'identification en attente. Ce nombre de suggestions en attente peut être comparé au total des observations pour chaque protocole.
+
+```{r}
+historique_suggestion <- dt_comments %>% 
+  # ne conserver que les actions faites sur des observations, et retirer les validations
+  filter(resource_type == "observation", comment_type != "vote") %>% 
+  # grouper par observation_id
+  group_by(resource_id) %>% 
+  # associer un ordre à chacune des actions
+  arrange(comment_id, .by_group = TRUE) %>% 
+  mutate(ordre = c(1:n())) %>%
+  # ne conserver que la dernière action (suggestion ou reidentification)
+  reframe(comment_type = comment_type[ordre = max(ordre)]) %>%
+  rename(observation_id = resource_id) %>%
+  left_join(dt_qubs %>% select(observation_id, protocole), by = "observation_id") %>% filter(comment_type == "suggestion")
+
+# créer un nouveau champ en booleen pour identifier les observations avec suggestion en attente
+dt_qubs <- dt_qubs %>% mutate(suggestion_attente = FALSE)
+dt_qubs$suggestion_attente[dt_qubs$observation_id %in% historique_suggestion$observation_id] <- TRUE
+
+DT::datatable(dt_qubs %>% group_by(protocole) %>% 
+                reframe(nb_attente = sum(suggestion_attente), 
+                        nb_observations = n_distinct(observation_id),
+                        pourcentage_sugg = round(nb_attente/nb_observations*100, 2)),
+              colnames = c("Protocole", "Suggestions\nen attente", "Total observations", "Pourcentage"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+```
+
+<br>
+
+## Top taxons
+
+::: panel-tabset
+### Top taxons validés
+
+Le tableau ci-dessous fournit, pour chaque taxon de la clé Qubs et pour chaque protocole, le nombre d'identifications validées. Petites précisions :
+
+-   Si le chiffre est égal à zéro : le taxon a été identifié dans le cadre du protocole mais n'a pas encore été validé
+
+-   Si la case est vide (NA) : le taxon n'a pas été identifié dans le cadre du protocole
+
+```{r}
+## TOP TAXON
+top_taxons_valides <- dt_qubs %>% group_by(taxon, protocole) %>%
+  summarise(nb_valide = sum(taxon_valide)) %>% 
+  tidyr::pivot_wider(names_from = protocole, values_from = nb_valide)
+
+DT::datatable(top_taxons_valides,
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+```
+
+<br>
+
+### Top taxons tout compris
+
+Le tableau ci-dessous fournit, pour chaque taxon de la clé Qubs et pour chaque protocole, le nombre d'observations sans prendre en compte la validation. Si la case est vide alors le taxon n'a pas été observé dans le cadre du protocole.
+
+```{r}
+## TOP TAXON
+top_taxons <- dt_qubs %>% group_by(taxon, protocole) %>%
+  summarise(nb_obs = n_distinct(observation_id)) %>% 
+  tidyr::pivot_wider(names_from = protocole, values_from = nb_obs)
+
+DT::datatable(top_taxons,
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+```
+:::
+
+<br>
+
+## Camemberts taxo
+
+Cette partie fournit l'information sur la distribution des observations (occurrence) selon différents regroupements d'espèces. Les proportions sont calculées à partir de l'ensemble des observations (sans prendre en compte la validation)
+
+Pour Aspifaune, Noctambules et l'ensemble des données Qubs, sont fournis un donut chart de la distribution des observations en 7 groupes, un tableau des données associées (Regroupement 2a) puis un tableau de la distribution des observations en 12 groupes.
+
+Pour Opération escargots : la distribution des observations entre escargots et limaces.
+
+:::: panel-tabset
+### Qubs
+
+```{r}
+# Distribution des obs selon le regroupement 2a.
+regroupement_2a <- dt_qubs %>% 
+  filter(!is.na(Regroupement2a)) %>%
+  group_by(Regroupement2a) %>%
+  reframe(nb_obs = n(),
+          nb_obs_validees = sum(taxon_valide == 1)) %>%
+  arrange(desc(nb_obs)) %>%
+  mutate(Regroupement2a = factor(Regroupement2a, levels = Regroupement2a)) %>%
+  mutate(prop = nb_obs/sum(nb_obs), # Compute percentages
+         ymax = cumsum(prop), # Compute the cumulative percentages (top of each rectangle)
+         ymin = c(0, head(ymax, n=-1))) # Compute the bottom of each rectangle
+
+# Donut plot pour regroupement 2a
+donut_taxo <- ggplot(regroupement_2a, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Regroupement2a)) +
+  geom_rect(color = "black") +
+  coord_polar(theta="y") + # Try to remove that to understand how the chart is built initially
+  xlim(c(2, 4))  + # Try to remove that to see how to make a pie chart
+  scale_fill_manual(values = palette_camemberts, 
+                    breaks = sort(as.character(regroupement_2a$Regroupement2a))) +
+  labs(fill = "Groupes d'espèces") +
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+donut_taxo
+# ggsave(here::here("reporting", "donut_taxo_qubs.svg"), donut_taxo)
+
+#tableau distribution des obs selon regroupement 2a
+DT::datatable(regroupement_2a %>% select(Regroupement2a, nb_obs, nb_obs_validees, prop) %>%
+                mutate(prop = round(prop, 3)),
+              colnames = c("Regroupement2a", "Observations", "Observations\nvalidées", 
+                           "Proportion\ngroupe"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+#tableau distribution des obs selon regroupement 2b
+regroupement_2b <- dt_qubs %>% 
+  filter(!is.na(taxon)) %>%
+  group_by(Regroupement2b) %>%
+  reframe(nb_obs = n(),
+          nb_obs_validees = sum(taxon_valide == 1)) %>%
+  arrange(desc(nb_obs)) %>%
+  mutate(Regroupement2b = factor(Regroupement2b, levels = Regroupement2b)) %>%
+  mutate(prop = nb_obs/sum(nb_obs), # Compute percentages
+         ymax = cumsum(prop), # Compute the cumulative percentages (top of each rectangle)
+         ymin = c(0, head(ymax, n=-1))) # Compute the bottom of each rectangle
+DT::datatable(regroupement_2b %>% select(Regroupement2b, nb_obs, nb_obs_validees, prop) %>%
+                mutate(prop = round(prop, 3)),
+              colnames = c("Regroupement2b", "Observations", "Observations\nvalidées", 
+                           "Proportion\ngroupe"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+
+```
+
+### Aspifaune
+
+```{r}
+# Distribution des obs selon le regroupement 2a.
+regroupement_2a <- dt_qubs %>% 
+  filter(!is.na(Regroupement2a)) %>%
+  filter(protocole == "Aspifaune" ) %>%
+  group_by(Regroupement2a) %>%
+  reframe(nb_obs = n(),
+          nb_obs_validees = sum(taxon_valide == 1)) %>%
+  #arrange(desc(nb_obs)) %>%
+  mutate(Regroupement2a = factor(Regroupement2a, levels = Regroupement2a)) %>%
+  mutate(prop = nb_obs/sum(nb_obs), # Compute percentages
+         ymax = cumsum(prop), # Compute the cumulative percentages (top of each rectangle)
+         ymin = c(0, head(ymax, n=-1))) # Compute the bottom of each rectangle
+
+# Donut plot pour regroupement 2a
+donut_taxo <- ggplot(regroupement_2a, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Regroupement2a)) +
+  geom_rect(color = "black") +
+  coord_polar(theta="y") + # Try to remove that to understand how the chart is built initially
+  xlim(c(2, 4))  + # Try to remove that to see how to make a pie chart
+  scale_fill_manual(values = palette_camemberts, 
+                    breaks = sort(as.character(regroupement_2a$Regroupement2a))) +
+  labs(fill = "Groupes d'espèces") +
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+donut_taxo
+# ggsave(here::here("reporting", "donut_taxo_aspifaune.svg"), donut_taxo)
+
+#tableau distribution des obs selon regroupement 2a
+DT::datatable(regroupement_2a %>% select(Regroupement2a, nb_obs, nb_obs_validees, prop) %>%
+                mutate(prop = round(prop, 3)),
+              colnames = c("Regroupement2a", "Observations", "Observations\nvalidées", 
+                           "Proportion\ngroupe"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+#tableau distribution des obs selon regroupement 2b
+regroupement_2b <- dt_qubs %>% 
+  filter(!is.na(taxon)) %>%
+  filter(protocole == "Aspifaune" ) %>%
+  group_by(Regroupement2b) %>%
+  reframe(nb_obs = n(),
+          nb_obs_validees = sum(taxon_valide == 1)) %>%
+  arrange(desc(nb_obs)) %>%
+  mutate(Regroupement2b = factor(Regroupement2b, levels = Regroupement2b)) %>%
+  mutate(prop = nb_obs/sum(nb_obs), # Compute percentages
+         ymax = cumsum(prop), # Compute the cumulative percentages (top of each rectangle)
+         ymin = c(0, head(ymax, n=-1))) # Compute the bottom of each rectangle
+DT::datatable(regroupement_2b %>% select(Regroupement2b, nb_obs, nb_obs_validees, prop) %>%
+                mutate(prop = round(prop, 3)),
+              colnames = c("Regroupement2b", "Observations", "Observations\nvalidées", 
+                           "Proportion\ngroupe"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+
+```
+
+### Noctambules
+
+```{r}
+# Distribution des obs selon le regroupement 2a.
+regroupement_2a <- dt_qubs %>% 
+  filter(!is.na(Regroupement2a)) %>%
+  filter(protocole == "Noctambules" ) %>%
+  group_by(Regroupement2a) %>%
+  reframe(nb_obs = n(),
+          nb_obs_validees = sum(taxon_valide == 1)) %>%
+  #arrange(desc(nb_obs)) %>%
+  mutate(Regroupement2a = factor(Regroupement2a, levels = Regroupement2a)) %>%
+  mutate(prop = nb_obs/sum(nb_obs), # Compute percentages
+         ymax = cumsum(prop), # Compute the cumulative percentages (top of each rectangle)
+         ymin = c(0, head(ymax, n=-1))) # Compute the bottom of each rectangle
+
+# Donut plot pour regroupement 2a
+donut_taxo <- ggplot(regroupement_2a, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Regroupement2a)) +
+  geom_rect(color = "black") +
+  coord_polar(theta="y") + # Try to remove that to understand how the chart is built initially
+  xlim(c(2, 4))  + # Try to remove that to see how to make a pie chart
+  scale_fill_manual(values = palette_camemberts, 
+                    breaks = sort(as.character(regroupement_2a$Regroupement2a))) +
+  labs(fill = "Groupes d'espèces") +
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+donut_taxo
+# ggsave(here::here("reporting", "donut_taxo_noctambules.svg"), donut_taxo)
+
+#tableau distribution des obs selon regroupement 2a
+DT::datatable(regroupement_2a %>% select(Regroupement2a, nb_obs, nb_obs_validees, prop) %>%
+                mutate(prop = round(prop, 3)),
+              colnames = c("Regroupement2a", "Observations", "Observations\nvalidées", 
+                           "Proportion\ngroupe"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+#tableau distribution des obs selon regroupement 2b
+regroupement_2b <- dt_qubs %>% 
+  filter(!is.na(taxon)) %>%
+  filter(protocole == "Noctambules" ) %>%
+  group_by(Regroupement2b) %>%
+  reframe(nb_obs = n(),
+          nb_obs_validees = sum(taxon_valide == 1)) %>%
+  arrange(desc(nb_obs)) %>%
+  mutate(Regroupement2b = factor(Regroupement2b, levels = Regroupement2b)) %>%
+  mutate(prop = nb_obs/sum(nb_obs), # Compute percentages
+         ymax = cumsum(prop), # Compute the cumulative percentages (top of each rectangle)
+         ymin = c(0, head(ymax, n=-1))) # Compute the bottom of each rectangle
+DT::datatable(regroupement_2b %>% select(Regroupement2b, nb_obs, nb_obs_validees, prop) %>%
+                mutate(prop = round(prop, 3)),
+              colnames = c("Regroupement2b", "Observations", "Observations\nvalidées", 
+                           "Proportion\ngroupe"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+
+```
+
+### Opération escargots
+
+```{r}
+# Assigner la catégorie du taxon quand l'organisme est non identifié (Escargot ou Limace)
+dt_escargots <- dt_escargots %>%
+  mutate(taxon = ifelse(presence_organisme == 1 & is.na(taxon), categorie_taxon, taxon))
+
+# Modifier les noms des taxons
+dt_escargots$taxon[dt_escargots$taxon == "Les Escargots"] <- "Les Escargots difficiles à déterminer"
+dt_escargots$taxon[dt_escargots$taxon == "Les Limaces"] <- "Les Limaces difficiles à déterminer"
+
+dt_escargots$taxon[dt_escargots$taxon == "Escargot"] <- "Les Escargots difficiles à déterminer"
+dt_escargots$taxon[dt_escargots$taxon == "Limace"] <- "Les Limaces difficiles à déterminer"
+
+
+synthese_escargots <- dt_escargots %>%
+  group_by(session_id, taxon) %>%
+  reframe(abondance = sum(as.numeric(taxon_count), na.rm = TRUE)) %>%
+  group_by(session_id) %>%
+  mutate(diversite = sum(abondance > 0)) %>%
+  filter(!is.na(abondance))
+  
+escargots_ab_rel <- synthese_escargots %>% 
+  ungroup() %>%
+  filter(!is.na(taxon), abondance != 0) %>%
+  mutate(ab_tot = sum(as.numeric(abondance), na.rm = TRUE))  %>%
+  group_by(taxon) %>%
+  reframe(ab_rel = sum(as.numeric(abondance), na.rm = TRUE)/unique(ab_tot)) %>%
+  arrange(ab_rel) %>%
+  mutate(taxon = factor(taxon, levels = taxon))
+
+
+graph_ab_rel <- ggplot(escargots_ab_rel, aes(x=taxon, y=ab_rel)) +
+  geom_point() + 
+  geom_segment( aes(x=taxon, xend=taxon, y=0, yend=ab_rel)) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(y = "Pourcentage des individus observés", x = "Taxon") +
+  theme_bw() +
+  coord_flip()
+graph_ab_rel
+
+# ggsave(here::here("reporting", "escargots_abondance.svg"), graph_ab_rel)
+```
+
+::: {.callout-note collapse="true" title="Valeurs associées à la figure"}
+```{r tableau_prct_abondance_escargots}
+
+
+DT::datatable(escargots_ab_rel %>% mutate(ab_rel = round(ab_rel*100, 3)) %>% arrange(desc(ab_rel)),
+              colnames = c("Nom du taxon", "Pourcentage\nde l'abondance totale"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+```
+:::
+
+```{r}
+#tableau distribution des obs selon regroupement 2b
+regroupement_2b <- dt_qubs %>% 
+  filter(!is.na(taxon)) %>%
+  filter(protocole == "Opération escargots") %>%
+  group_by(Regroupement2b) %>%
+  reframe(nb_obs = n(),
+          nb_obs_validees = sum(taxon_valide == 1)) %>%
+  mutate(prop = nb_obs/sum(nb_obs), # Compute percentages
+         ymax = cumsum(prop), # Compute the cumulative percentages (top of each rectangle)
+         ymin = c(0, head(ymax, n=-1))) # Compute the bottom of each rectangle
+
+# Donut plot pour regroupement 2a
+donut_taxo <- ggplot(regroupement_2b, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Regroupement2b)) +
+  geom_rect(color = "black") +
+  coord_polar(theta="y") + # Try to remove that to understand how the chart is built initially
+  xlim(c(2, 4))  + # Try to remove that to see how to make a pie chart
+  scale_fill_manual(values = c("#43185d", "#c99de5")) +
+  labs(fill = "Groupes d'espèces") +
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+donut_taxo
+# ggsave(here::here("reporting", "donut_taxo_escargots.svg"), donut_taxo)
+
+#Afficher tableau
+DT::datatable(regroupement_2b %>% select(Regroupement2b, nb_obs, nb_obs_validees, prop) %>%
+                mutate(prop = round(prop, 3)),
+              colnames = c("Regroupement2b", "Observations", "Observations\nvalidées", 
+                           "Proportion\ngroupe"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+
+```
+
+### En quête de vers
+
+```{r}
+# Distribution des obs selon le regroupement 2a.
+regroupement_2a <- dt_qubs %>% 
+  filter(!is.na(Regroupement2a)) %>%
+  filter(protocole == "En quête de vers" ) %>%
+  group_by(Regroupement2a) %>%
+  reframe(nb_obs = n(),
+          nb_obs_validees = sum(taxon_valide == 1)) %>%
+  arrange(desc(nb_obs)) %>%
+  mutate(Regroupement2a = factor(Regroupement2a, levels = Regroupement2a)) %>%
+  mutate(prop = nb_obs/sum(nb_obs), # Compute percentages
+         ymax = cumsum(prop), # Compute the cumulative percentages (top of each rectangle)
+         ymin = c(0, head(ymax, n=-1))) # Compute the bottom of each rectangle
+
+# Donut plot pour regroupement 2a
+donut_taxo <- ggplot(regroupement_2a, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Regroupement2a)) +
+  geom_rect(color = "black") +
+  coord_polar(theta="y") + # Try to remove that to understand how the chart is built initially
+  xlim(c(2, 4))  + # Try to remove that to see how to make a pie chart
+  scale_fill_manual(values = palette_camemberts, 
+                    breaks = sort(as.character(regroupement_2a$Regroupement2a))) +
+  labs(fill = "Groupes d'espèces") +
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+donut_taxo
+# ggsave(here::here("reporting", "donut_taxo_vers.svg"), donut_taxo)
+
+#tableau distribution des obs selon regroupement 2a
+DT::datatable(regroupement_2a %>% select(Regroupement2a, nb_obs, nb_obs_validees, prop) %>%
+                mutate(prop = round(prop, 3)),
+              colnames = c("Regroupement2a", "Observations", "Observations\nvalidées", 
+                           "Proportion\ngroupe"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+
+#tableau distribution des obs selon regroupement 2b
+regroupement_2b <- dt_qubs %>% 
+  filter(!is.na(taxon)) %>%
+  filter(protocole == "En quête de vers" ) %>%
+  group_by(Regroupement2b) %>%
+  reframe(nb_obs = n(),
+          nb_obs_validees = sum(taxon_valide == 1)) %>%
+  arrange(desc(nb_obs)) %>%
+  mutate(Regroupement2b = factor(Regroupement2b, levels = Regroupement2b)) %>%
+  mutate(prop = nb_obs/sum(nb_obs), # Compute percentages
+         ymax = cumsum(prop), # Compute the cumulative percentages (top of each rectangle)
+         ymin = c(0, head(ymax, n=-1))) # Compute the bottom of each rectangle
+DT::datatable(regroupement_2b %>% select(Regroupement2b, nb_obs, nb_obs_validees, prop) %>%
+                mutate(prop = round(prop, 3)),
+              colnames = c("Regroupement2b", "Observations", "Observations\nvalidées", 
+                           "Proportion\ngroupe"),
+              extensions = "Buttons",
+              options = list(dom = 'Blfrtip',
+                             buttons = c("copy", "csv")),
+              rownames = FALSE)
+```
+::::
+
+<br>
+
+## Carte des sites
+
+Une carte simplifiée avec l'ensemble des sites d'échantillonnages (tous protocoles confondus).
+
+```{r}
+#| echo: false
+## CARTO
+# Carto ---------------------------------------------------------------
+#coordonnees sites
+coord_qubs <- dt_qubs %>%
+  select(session_id, latitude, longitude) %>%
+  distinct() %>%
+  sf::st_as_sf(coords = c("longitude",
+                          "latitude"),
+               crs = 4326)
+#shapefile de la France pour carto
+France <- sf::st_simplify(sf::read_sf(here::here("maps", "metropole-version-simplifiee.geojson")),
+                          dTolerance = 4000)
+#carte sites
+carte_sites_qubs <- tm_shape(France) +
+  tm_borders(lwd = 3, col = "#352e68") +
+  tm_shape(coord_qubs) +
+  tm_symbols(shape = 20, size = 0.8, col = "#4939a5") +
+  tm_view(symbol.size.fixed = 0.1)
+#save maps
+# tmap_save(carte_sites_qubs,
+#           filename = here::here("reporting", "carte_sites_qubs.svg"))
+
+carte_sites_qubs
+
+```
+
+<br>
+
+## Cartes des sites par protocole
+
+```{r}
+#| echo: false
+## CARTO
+# Carto ---------------------------------------------------------------
+#coordonnees sites
+coord_qubs <- dt_qubs %>%
+  select(protocole, session_id, latitude, longitude) %>%
+  distinct() %>%
+  sf::st_as_sf(coords = c("longitude",
+                          "latitude"),
+               crs = 4326)
+#shapefile de la France pour carto
+France <- sf::st_simplify(sf::read_sf(here::here("maps", "metropole-version-simplifiee.geojson")),
+                          dTolerance = 4000)
+
+palette_protocoles <- c("Aspifaune" = "#fcc40b",
+                        "En quête de vers" = "#f56747",
+                        "Noctambules" = "#b41343",
+                        "Opération escargots" = "#372e6d") 
+
+#carte sites
+for(i in unique(coord_qubs$protocole))
+{
+  carte_sites_qubs <- tm_shape(France) +
+  tm_borders(lwd = 3) +
+  tm_shape(coord_qubs %>% filter(protocole == i)) +
+  tm_symbols(shape = 20, size = 0.5, col = palette_protocoles[i]) +
+  tm_layout(main.title = i)
+
+  print(carte_sites_qubs)
+  #save maps
+  # tmap_save(carte_sites_qubs,
+  #           filename = here::here("reporting", paste0("carte_sites_", i, ".svg")))
+}
+# #save maps
+# tmap_save(carte_sites_qubs,
+#           filename = here::here("reporting", "carte_sites_qubs.svg"))
+
+
+
+```
