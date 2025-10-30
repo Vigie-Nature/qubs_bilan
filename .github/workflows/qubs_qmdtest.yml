@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: mpretet/image_fiche_opj:latest
+      image: mpretet/qubs_restit:latest
       
     # env:
     #   SITE_NAME: ${{ secrets.SITE_NAME }}
