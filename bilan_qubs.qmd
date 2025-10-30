@@ -16,8 +16,8 @@ library(dplyr)
 library(ggplot2)
 library(sf)
 library(tmap)
+library(tidyr)
 library(DT)
-library(reshape2)
 library(data.table)
 
 
@@ -25,7 +25,7 @@ library(data.table)
 source(here::here("functions", "create_df_qubs.R"))
 
 
-dir.create(here::here("reporting"))
+  dir.create(here::here("reporting"))
 ```
 
 <br>
