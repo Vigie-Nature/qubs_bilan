@@ -12,10 +12,10 @@ jobs:
     container:
       image: mpretet/qubs_restit:latest
       
-    # env:
-    #   SITE_NAME: ${{ secrets.SITE_NAME }}
-    #   FTP_USER: ${{ secrets.FTP_USER }}
-    #   FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    env:
+      SITE_NAME: ${{ secrets.SITE_NAME }}
+      FTP_USER: ${{ secrets.FTP_USER }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
     
     steps:
       # Récupération du code du dépôt
