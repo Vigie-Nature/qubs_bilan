@@ -21,11 +21,32 @@ library(DT)
 library(data.table)
 
 
-#load functions to fetch data
+# Import des donnees qubs a partir des exports standards
 source(here::here("functions", "create_df_qubs.R"))
 
+### Dataframe des données pour tous les protocoles
+# -----------------------------------------------
+#identifier les champs communs aux differents dataframe
+champs_communs <- Reduce(intersect, list(colnames(dt_aspifaune),
+                                         colnames(dt_noctambules),
+                                         colnames(dt_escargots),
+                                         colnames(dt_vers)))
+#rbind des donnees des 3 protocoles
+dt_qubs <- rbind(dt_aspifaune %>% select(all_of(champs_communs)),
+                 dt_noctambules %>% select(all_of(champs_communs)),
+                 dt_escargots %>% select(all_of(champs_communs)),
+                 dt_vers %>% select(all_of(champs_communs)))
 
-  dir.create(here::here("reporting"))
+# Ajouter la taxonomie et les regroupements d'especes
+taxo <- data.table::fread(here::here("data", "thesaurus_V1V2.csv")) %>% 
+  select(`Nom français V1`, `Regroupement2a`, `Regroupement2b`, `Regroupement3`)
+colnames(taxo) <- c("taxon", "Regroupement2a", "Regroupement2b", "Regroupement3")
+
+dt_qubs <- dt_qubs %>% left_join(taxo, by = "taxon")
+
+dir.create(here::here("reporting"))
+
+
 ```
 
 <br>
