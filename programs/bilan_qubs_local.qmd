@@ -20,9 +20,12 @@ library(tidyr)
 library(DT)
 library(data.table)
 
+# 
+# # Import des donnees qubs a partir des exports standards
+# source(here::here("functions", "create_df_qubs.R"))
+source(here::here("programs", "import_local_data.R"))
 
-# Import des donnees qubs a partir des exports standards
-source(here::here("functions", "create_df_qubs.R"))
+
 
 ### Dataframe des données pour tous les protocoles
 # -----------------------------------------------
@@ -35,7 +38,8 @@ champs_communs <- Reduce(intersect, list(colnames(dt_aspifaune),
 dt_qubs <- rbind(dt_aspifaune %>% select(all_of(champs_communs)),
                  dt_noctambules %>% select(all_of(champs_communs)),
                  dt_escargots %>% select(all_of(champs_communs)),
-                 dt_vers %>% select(all_of(champs_communs)))
+                 dt_vers %>% select(all_of(champs_communs))) %>%
+  mutate(session_date = as.Date(session_date))
 
 # Ajouter la taxonomie et les regroupements d'especes
 taxo <- data.table::fread(here::here("data", "thesaurus_V1V2.csv")) %>% 
@@ -46,12 +50,35 @@ dt_qubs <- dt_qubs %>% left_join(taxo, by = "taxon")
 
 dir.create(here::here("reporting"))
 
+palette_qubs <- c("#ff8800",
+                  "#3c24a6",
+                  "#50FFB1",
+                  "#aa1256",
+                  "#2baca6",
+                  "#1a702d",
+                  "#0f0608")
+
+palette_camemberts <- c("Les Insectes" = "#377eb8",
+                        "Les Gastéropodes" = "#e41a1c",
+                        "Les Collemboles et diploures" = "#4daf4a",
+                        "Arachnides" = "#984ea3",
+                        "Les Crustacés terrestres" = "#ff7f00",
+                        "Les Vers sens large" = "#ffff33",
+                        "Les Milles-pattes" = "#a25427",
+                        "Les Escargots" = "#43185d",
+                        "Les Limaces" = "#c99de5")
 
 ```
 
 <br>
 
 **DATE DU DERNIER EXPORT DE DONNEES : `r format(Sys.Date(), format="%d %B %Y")`**
+
+<br>
+
+Nombre total de participants au moment de l'export : `r length(unique(dt_qubs$user_id))`
+
+Nombre total de sites au moment de l'export : `r length(unique(dt_qubs$site_id))`
 
 <br>
 
@@ -301,118 +328,187 @@ Dans le cadre du protocole En quête de vers on totalise `r length(unique(dt_ver
 
 <br>
 
-## Communauté Qubs
+<!-- ## Communauté Qubs -->
 
-::: panel-tabset
-### Intractions au total
+<!-- ::: panel-tabset -->
 
-Ce tableau donne pour chaque protocole le **nombre total** de validations, de suggestions, de ré-identifications et de commentaires sur participations.
+<!-- ### Intractions au total -->
 
-```{r}
-source(here::here("functions", "create_df_qubs_comments.R"))
+<!-- Ce tableau donne pour chaque protocole le **nombre total** de validations, de suggestions, de ré-identifications et de commentaires sur participations. -->
 
-# remplacer le type de ressource "participation" en "session" pour s'aligner sur le standard
-dt_comments[dt_comments$resource_type == "participation",]$resource_type <- "session"
+<!-- ```{r} -->
 
-#ajouter le protocole aux donnees sociales
-## melt le tableau dt_qubs sur observation_id et session_id 
-## pour obtenir une colonne resource_id equivalente à celle de la table qubs.comments
-dt_comments <- dt_comments %>% 
-  left_join(tidyr::pivot_longer(dt_qubs %>% 
-                                  select(observation_id, session_id, protocole) %>% 
-                                  rename(observation = observation_id,
-                                         session = session_id) %>%
-                                  distinct(), values_drop_na = TRUE,
-                                cols = c(session, observation),
-                                #rename columns to match the structure of dt_comments
-                                names_to = "resource_type",
-                                values_to = "resource_id"),
-            #jointure sur resource_id et resource_type
-            by = c("resource_id", "resource_type"))
+<!-- source(here::here("functions", "create_df_qubs_comments.R")) -->
 
-## tableau recapitulatif interactions sociales par protocole : nombre d'interactions
-DT::datatable(dt_comments %>% 
-                select(protocole, comment_type) %>% 
-                na.omit() %>% 
-                group_by(protocole) %>%
-                reframe(nb_validations = sum(comment_type == 'vote'),
-                        nb_suggestions = sum(comment_type == "suggestion"),
-                        nb_reidentifications = sum(comment_type == "reidentification"),
-                        nb_comm_sessions = sum(comment_type == "comment")),
-              colnames = c("Protocole", "Validations", "Suggestions", 
-                           "Ré-identifications", "Commentaires\nsession"),
-              extensions = "Buttons",
-              options = list(dom = 'Blfrtip',
-                             buttons = c("copy", "csv")),
-              rownames = FALSE)
+<!-- # remplacer le type de ressource "participation" en "session" pour s'aligner sur le standard -->
 
+<!-- dt_comments[dt_comments$resource_type == "participation",]$resource_type <- "session" -->
 
-```
+<!-- #ajouter le protocole aux donnees sociales -->
 
-### Participant.es impliqués
+<!-- ## melt le tableau dt_qubs sur observation_id et session_id  -->
 
-Ce tableau donne pour chaque protocole le **nombre de participant.es** ayant fait des validations, des suggestions, des ré-identifications ou des commentaires sur participation
+<!-- ## pour obtenir une colonne resource_id equivalente à celle de la table qubs.comments -->
 
-```{r}
-## tableau recapitulatif interactions sociales par protocole : nombre de users
-DT::datatable(dt_comments %>% 
-                select(protocole, comment_type, user_id) %>% 
-                na.omit() %>% 
-                group_by(protocole) %>%
-                reframe(nb_validations = n_distinct(user_id[comment_type == 'vote']),
-                        nb_suggestions = n_distinct(user_id[comment_type == "suggestion"]),
-                        nb_reidentifications = n_distinct(user_id[comment_type == "reidentification"]),
-                        nb_comm_sessions = n_distinct(user_id[comment_type == "comment"])),
-              colnames = c("Protocole", "Validations", 
-                           "Suggestions", "Ré-identifications", "Commentaires\nsession"),
-              extensions = "Buttons",
-              options = list(dom = 'Blfrtip',
-                             buttons = c("copy", "csv")),
-              rownames = FALSE)
-          
-```
-:::
+<!-- dt_comments <- dt_comments %>%  -->
 
-<br>
+<!--   left_join(tidyr::pivot_longer(dt_qubs %>%  -->
 
-## Suggestions en attente
+<!--                                   select(observation_id, session_id, protocole) %>%  -->
 
-Le tableau ci-dessous fournit pour chaque protocole le nombre d'observations avec une suggestion d'identification en attente. Ce nombre de suggestions en attente peut être comparé au total des observations pour chaque protocole.
+<!--                                   rename(observation = observation_id, -->
 
-```{r}
-historique_suggestion <- dt_comments %>% 
-  # ne conserver que les actions faites sur des observations, et retirer les validations
-  filter(resource_type == "observation", comment_type != "vote") %>% 
-  # grouper par observation_id
-  group_by(resource_id) %>% 
-  # associer un ordre à chacune des actions
-  arrange(comment_id, .by_group = TRUE) %>% 
-  mutate(ordre = c(1:n())) %>%
-  # ne conserver que la dernière action (suggestion ou reidentification)
-  reframe(comment_type = comment_type[ordre = max(ordre)]) %>%
-  rename(observation_id = resource_id) %>%
-  left_join(dt_qubs %>% select(observation_id, protocole), by = "observation_id") %>% filter(comment_type == "suggestion")
+<!--                                          session = session_id) %>% -->
 
-# créer un nouveau champ en booleen pour identifier les observations avec suggestion en attente
-dt_qubs <- dt_qubs %>% mutate(suggestion_attente = FALSE)
-dt_qubs$suggestion_attente[dt_qubs$observation_id %in% historique_suggestion$observation_id] <- TRUE
+<!--                                   distinct(), values_drop_na = TRUE, -->
 
-DT::datatable(dt_qubs %>% group_by(protocole) %>% 
-                reframe(nb_attente = sum(suggestion_attente), 
-                        nb_observations = n_distinct(observation_id),
-                        pourcentage_sugg = round(nb_attente/nb_observations*100, 2)),
-              colnames = c("Protocole", "Suggestions\nen attente", "Total observations", "Pourcentage"),
-              extensions = "Buttons",
-              options = list(dom = 'Blfrtip',
-                             buttons = c("copy", "csv")),
-              rownames = FALSE)
-```
+<!--                                 cols = c(session, observation), -->
+
+<!--                                 #rename columns to match the structure of dt_comments -->
+
+<!--                                 names_to = "resource_type", -->
+
+<!--                                 values_to = "resource_id"), -->
+
+<!--             #jointure sur resource_id et resource_type -->
+
+<!--             by = c("resource_id", "resource_type")) -->
+
+<!-- ## tableau recapitulatif interactions sociales par protocole : nombre d'interactions -->
+
+<!-- DT::datatable(dt_comments %>%  -->
+
+<!--                 select(protocole, comment_type) %>%  -->
+
+<!--                 na.omit() %>%  -->
+
+<!--                 group_by(protocole) %>% -->
+
+<!--                 reframe(nb_validations = sum(comment_type == 'vote'), -->
+
+<!--                         nb_suggestions = sum(comment_type == "suggestion"), -->
+
+<!--                         nb_reidentifications = sum(comment_type == "reidentification"), -->
+
+<!--                         nb_comm_sessions = sum(comment_type == "comment")), -->
+
+<!--               colnames = c("Protocole", "Validations", "Suggestions",  -->
+
+<!--                            "Ré-identifications", "Commentaires\nsession"), -->
+
+<!--               extensions = "Buttons", -->
+
+<!--               options = list(dom = 'Blfrtip', -->
+
+<!--                              buttons = c("copy", "csv")), -->
+
+<!--               rownames = FALSE) -->
+
+<!-- ``` -->
+
+<!-- ### Participant.es impliqués -->
+
+<!-- Ce tableau donne pour chaque protocole le **nombre de participant.es** ayant fait des validations, des suggestions, des ré-identifications ou des commentaires sur participation -->
+
+<!-- ```{r} -->
+
+<!-- ## tableau recapitulatif interactions sociales par protocole : nombre de users -->
+
+<!-- DT::datatable(dt_comments %>%  -->
+
+<!--                 select(protocole, comment_type, user_id) %>%  -->
+
+<!--                 na.omit() %>%  -->
+
+<!--                 group_by(protocole) %>% -->
+
+<!--                 reframe(nb_validations = n_distinct(user_id[comment_type == 'vote']), -->
+
+<!--                         nb_suggestions = n_distinct(user_id[comment_type == "suggestion"]), -->
+
+<!--                         nb_reidentifications = n_distinct(user_id[comment_type == "reidentification"]), -->
+
+<!--                         nb_comm_sessions = n_distinct(user_id[comment_type == "comment"])), -->
+
+<!--               colnames = c("Protocole", "Validations",  -->
+
+<!--                            "Suggestions", "Ré-identifications", "Commentaires\nsession"), -->
+
+<!--               extensions = "Buttons", -->
+
+<!--               options = list(dom = 'Blfrtip', -->
+
+<!--                              buttons = c("copy", "csv")), -->
+
+<!--               rownames = FALSE) -->
+
+<!-- ``` -->
+
+<!-- ::: -->
+
+<!-- <br> -->
+
+<!-- ## Suggestions en attente -->
+
+<!-- Le tableau ci-dessous fournit pour chaque protocole le nombre d'observations avec une suggestion d'identification en attente. Ce nombre de suggestions en attente peut être comparé au total des observations pour chaque protocole. -->
+
+<!-- ```{r} -->
+
+<!-- historique_suggestion <- dt_comments %>%  -->
+
+<!--   # ne conserver que les actions faites sur des observations, et retirer les validations -->
+
+<!--   filter(resource_type == "observation", comment_type != "vote") %>%  -->
+
+<!--   # grouper par observation_id -->
+
+<!--   group_by(resource_id) %>%  -->
+
+<!--   # associer un ordre à chacune des actions -->
+
+<!--   arrange(comment_id, .by_group = TRUE) %>%  -->
+
+<!--   mutate(ordre = c(1:n())) %>% -->
+
+<!--   # ne conserver que la dernière action (suggestion ou reidentification) -->
+
+<!--   reframe(comment_type = comment_type[ordre = max(ordre)]) %>% -->
+
+<!--   rename(observation_id = resource_id) %>% -->
+
+<!--   left_join(dt_qubs %>% select(observation_id, protocole), by = "observation_id") %>% filter(comment_type == "suggestion") -->
+
+<!-- # créer un nouveau champ en booleen pour identifier les observations avec suggestion en attente -->
+
+<!-- dt_qubs <- dt_qubs %>% mutate(suggestion_attente = FALSE) -->
+
+<!-- dt_qubs$suggestion_attente[dt_qubs$observation_id %in% historique_suggestion$observation_id] <- TRUE -->
+
+<!-- DT::datatable(dt_qubs %>% group_by(protocole) %>%  -->
+
+<!--                 reframe(nb_attente = sum(suggestion_attente),  -->
+
+<!--                         nb_observations = n_distinct(observation_id), -->
+
+<!--                         pourcentage_sugg = round(nb_attente/nb_observations*100, 2)), -->
+
+<!--               colnames = c("Protocole", "Suggestions\nen attente", "Total observations", "Pourcentage"), -->
+
+<!--               extensions = "Buttons", -->
+
+<!--               options = list(dom = 'Blfrtip', -->
+
+<!--                              buttons = c("copy", "csv")), -->
+
+<!--               rownames = FALSE) -->
+
+<!-- ``` -->
 
 <br>
 
 ## Top taxons
 
-::: panel-tabset
+::::: panel-tabset
 ### Top taxons validés
 
 Le tableau ci-dessous fournit, pour chaque taxon de la clé Qubs et pour chaque protocole, le nombre d'identifications validées. Petites précisions :
@@ -435,25 +531,35 @@ DT::datatable(top_taxons_valides,
 
 ```
 
-<br>
+<!-- <br> -->
 
-### Top taxons tout compris
+<!-- ### Top taxons tout compris -->
 
-Le tableau ci-dessous fournit, pour chaque taxon de la clé Qubs et pour chaque protocole, le nombre d'observations sans prendre en compte la validation. Si la case est vide alors le taxon n'a pas été observé dans le cadre du protocole.
+<!-- Le tableau ci-dessous fournit, pour chaque taxon de la clé Qubs et pour chaque protocole, le nombre d'observations sans prendre en compte la validation. Si la case est vide alors le taxon n'a pas été observé dans le cadre du protocole. -->
 
-```{r}
-## TOP TAXON
-top_taxons <- dt_qubs %>% group_by(taxon, protocole) %>%
-  summarise(nb_obs = n_distinct(observation_id)) %>% 
-  tidyr::pivot_wider(names_from = protocole, values_from = nb_obs)
+<!-- ```{r} -->
 
-DT::datatable(top_taxons,
-              extensions = "Buttons",
-              options = list(dom = 'Blfrtip',
-                             buttons = c("copy", "csv")),
-              rownames = FALSE)
-```
-:::
+<!-- ## TOP TAXON -->
+
+<!-- top_taxons <- dt_qubs %>% group_by(taxon, protocole) %>% -->
+
+<!--   summarise(nb_obs = n_distinct(observation_id)) %>%  -->
+
+<!--   tidyr::pivot_wider(names_from = protocole, values_from = nb_obs) -->
+
+<!-- DT::datatable(top_taxons, -->
+
+<!--               extensions = "Buttons", -->
+
+<!--               options = list(dom = 'Blfrtip', -->
+
+<!--                              buttons = c("copy", "csv")), -->
+
+<!--               rownames = FALSE) -->
+
+<!-- ``` -->
+
+<!-- ::: -->
 
 <br>
 
@@ -904,3 +1010,4 @@ for(i in unique(coord_qubs$protocole))
 
 
 ```
+:::::
