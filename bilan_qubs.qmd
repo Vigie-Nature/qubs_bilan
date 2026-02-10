@@ -70,7 +70,7 @@ synthese_session_qubs <- dt_qubs %>%
           nb_sessions_vides = sum(presence_organisme == 0))
 
 DT::datatable(synthese_session_qubs,
-              colnames = c("Protocole", "Sites", "Participants", "Sessions",
+              colnames = c("Protocole", "Année", "Sites", "Participants", "Sessions",
                            "Sessions\nvides"),
               extensions = "Buttons",
               options = list(dom = 'Blfrtip',
