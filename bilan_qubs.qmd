@@ -51,7 +51,7 @@ dir.create(here::here("reporting"))
 
 <br>
 
-**DATE DU DERNIER EXPORT DE DONNEES : `r format(Sys.Date(), format="%d %B %Y")`**
+**DATE DE LA DERNIERE SESSION D'OBSERVATION DANS LES DONNEES : `r format(max(dt_qubs$session_date), format="%d %B %Y")`**
 
 <br>
 
