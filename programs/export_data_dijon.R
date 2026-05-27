@@ -54,7 +54,7 @@ dt_qubs <- dt_qubs %>% left_join(taxo, by = "taxon")
 
 #coordonnees sites
 coord_qubs <- dt_qubs %>%
-  select(participation_id, latitude, longitude) %>%
+  select(session_id, latitude, longitude) %>%
   distinct() %>%
   sf::st_as_sf(coords = c("longitude", 
                           "latitude"),
@@ -81,15 +81,15 @@ dt_qubs_agregat <- sf::st_filter(coord_qubs, agregat.polygon)
 
 
 #on applique le filtre sur les participations dans la surface considérée
-dt_qubs <- dt_qubs %>% filter(participation_id %in% dt_qubs_agregat$participation_id)
+dt_qubs <- dt_qubs %>% filter(session_id %in% dt_qubs_agregat$session_id)
 dt_noctambules <- dt_noctambules %>% 
-  filter(participation_id %in% dt_qubs_agregat$participation_id)
+  filter(session_id %in% dt_qubs_agregat$session_id)
 dt_aspifaune <- dt_aspifaune %>% 
-  filter(participation_id %in% dt_qubs_agregat$participation_id)
+  filter(session_id %in% dt_qubs_agregat$session_id)
 dt_escargots <- dt_escargots %>% 
-  filter(participation_id %in% dt_qubs_agregat$participation_id)
+  filter(session_id %in% dt_qubs_agregat$session_id)
 dt_vers <- dt_vers %>%
-  filter(participation_id %in% dt_qubs_agregat$participation_id)
+  filter(session_id %in% dt_qubs_agregat$session_id)
 
 ## Palettes graphiques
 
