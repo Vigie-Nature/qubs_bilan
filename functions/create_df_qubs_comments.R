@@ -20,7 +20,7 @@ require(httr)
 library(readr)
 
 if (Sys.getenv("CI") != "true") {
-  readRenviron(".env")
+  readRenviron(".Renviron")
 }
 
 
@@ -29,8 +29,8 @@ if (Sys.getenv("CI") != "true") {
 # print("Requête des données récentes")
 if (!exists("req_comments")) {
   req_comments <- GET(
-    paste0(Sys.getenv('SITE_NAME'), "export_qubs_comments.csv"),
-    authenticate(Sys.getenv('FTP_USER'), Sys.getenv('FTP_PASSWORD'), type = "basic")
+    paste0(Sys.getenv('REPO_FTP_HOST'), "export_qubs_comments.csv"),
+    authenticate(Sys.getenv('REPO_FTP_USER'), Sys.getenv('REPO_FTP_PASSWORD'), type = "basic")
   )
 }
 
