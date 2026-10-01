@@ -284,13 +284,13 @@ Sinon je trouve que c'est plus parlant de donner le nombre de nuits différentes
 
 ### Opération escargots
 
--   Nombre total d'individus observés : `r sum(na.omit(as.numeric(dt_escargots$taxon_count)))`
+- Nombre total d'individus observés : `r sum(na.omit(as.numeric(dt_escargots$taxon_count)))`
 
--   Nombre de taxons différents observés : `r length(unique(na.omit(dt_escargots$taxon)))`
+- Nombre de taxons différents observés : `r length(unique(na.omit(dt_escargots$taxon)))`
 
--   Nombre de taxons différents observés et validés : `r length(unique(na.omit(dt_escargots %>% filter(taxon_valide == 1) %>% pull(taxon))))`
+- Nombre de taxons différents observés et validés : `r length(unique(na.omit(dt_escargots %>% filter(taxon_valide == 1) %>% pull(taxon))))`
 
--   Nombre d'abris : `r length(unique(dt_escargots$abri_id))` (`r length(unique(dt_escargots$abri_id[dt_escargots$abri_typ == "Coupelle"]))` Coupelles ; `r length(unique(dt_escargots$abri_id[dt_escargots$abri_typ == "Planche"]))` Planches)
+- Nombre d'abris : `r length(unique(dt_escargots$abri_id))` (`r length(unique(dt_escargots$abri_id[dt_escargots$abri_typ == "Coupelle"]))` Coupelles ; `r length(unique(dt_escargots$abri_id[dt_escargots$abri_typ == "Planche"]))` Planches)
 
 <br>
 
@@ -417,9 +417,9 @@ DT::datatable(dt_qubs %>% group_by(protocole) %>%
 
 Le tableau ci-dessous fournit, pour chaque taxon de la clé Qubs et pour chaque protocole, le nombre d'identifications validées. Petites précisions :
 
--   Si le chiffre est égal à zéro : le taxon a été identifié dans le cadre du protocole mais n'a pas encore été validé
+- Si le chiffre est égal à zéro : le taxon a été identifié dans le cadre du protocole mais n'a pas encore été validé
 
--   Si la case est vide (NA) : le taxon n'a pas été identifié dans le cadre du protocole
+- Si la case est vide (NA) : le taxon n'a pas été identifié dans le cadre du protocole
 
 ```{r}
 ## TOP TAXON
