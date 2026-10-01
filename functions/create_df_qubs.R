@@ -22,7 +22,7 @@ require(httr)
 library(readr)
 
 if (Sys.getenv("CI") != "true") {
-  readRenviron(".env")
+  readRenviron(".Renviron")
 }
 
 source("functions/var.R")
@@ -32,8 +32,8 @@ source("functions/var.R")
 # print("Requête des données récentes")
 if (!exists("req_vers")) {
   req_vers <- GET(
-    paste0(Sys.getenv('SITE_NAME'), "export_qubs_vers.csv"),
-    authenticate(Sys.getenv('FTP_USER'), Sys.getenv('FTP_PASSWORD'), type = "basic")
+    paste0(Sys.getenv('REPO_FTP_HOST'), "export_qubs_vers.csv"),
+    authenticate(Sys.getenv('REPO_FTP_USER'), Sys.getenv('REPO_FTP_PASSWORD'), type = "basic")
   )
 }
 
@@ -43,8 +43,8 @@ dt_vers <- readr::read_csv2(content(req_vers, "raw"))
 # print("Requête des données ensemble de la période")
 if (!exists("req_noctambules")) {
   req_noctambules <- GET(
-    paste0(Sys.getenv('SITE_NAME'), "export_qubs_noctambules.csv"),
-    authenticate(Sys.getenv('FTP_USER'), Sys.getenv('FTP_PASSWORD'), type = "basic")
+    paste0(Sys.getenv('REPO_FTP_HOST'), "export_qubs_noctambules.csv"),
+    authenticate(Sys.getenv('REPO_FTP_USER'), Sys.getenv('REPO_FTP_PASSWORD'), type = "basic")
   )
 }
 
@@ -54,8 +54,8 @@ dt_noctambules <- readr::read_csv2(content(req_noctambules, "raw"))
 # print("Requête des données ensemble de la période")
 if (!exists("req_aspifaune")) {
   req_aspifaune <- GET(
-    paste0(Sys.getenv('SITE_NAME'), "export_qubs_aspifaune.csv"),
-    authenticate(Sys.getenv('FTP_USER'), Sys.getenv('FTP_PASSWORD'), type = "basic")
+    paste0(Sys.getenv('REPO_FTP_HOST'), "export_qubs_aspifaune.csv"),
+    authenticate(Sys.getenv('REPO_FTP_USER'), Sys.getenv('REPO_FTP_PASSWORD'), type = "basic")
   )
 }
 
@@ -65,8 +65,8 @@ dt_aspifaune <- readr::read_csv2(content(req_aspifaune, "raw"))
 # print("Requête des données ensemble de la période")
 if (!exists("req_escargots")) {
   req_escargots <- GET(
-    paste0(Sys.getenv('SITE_NAME'), "export_qubs_escargots.csv"),
-    authenticate(Sys.getenv('FTP_USER'), Sys.getenv('FTP_PASSWORD'), type = "basic")
+    paste0(Sys.getenv('REPO_FTP_HOST'), "export_qubs_escargots.csv"),
+    authenticate(Sys.getenv('REPO_FTP_USER'), Sys.getenv('REPO_FTP_PASSWORD'), type = "basic")
   )
 }
 
