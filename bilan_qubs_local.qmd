@@ -104,7 +104,7 @@ DT::datatable(synthese_session_qubs,
 ```{r tableau_chiffres_annee}
 ## TABLEAU RESUME DONNEES QUBS
 synthese_session_qubs <- dt_qubs %>%
-  mutate(annee = year(session_date)) %>%
+  mutate(annee = lubridate::year(session_date)) %>%
   group_by(protocole, annee) %>%
   reframe(nb_sites = n_distinct(site_id),
           nb_users = n_distinct(user_id),
@@ -171,7 +171,7 @@ DT::datatable(synthese_obs_qubs,
 ```{r tableau_chiffres_obs_annee}
 ## TABLEAU RESUME OBS QUBS
 synthese_obs_qubs <- dt_qubs %>%
-  mutate(annee = year(session_date)) %>%
+  mutate(annee = lubridate::year(session_date)) %>%
   group_by(protocole, annee) %>%
   reframe(nb_taxons_qubs = n_distinct(na.omit(taxon)),
           nb_taxons_identifies = sum(!is.na(taxon)),
@@ -180,16 +180,16 @@ synthese_obs_qubs <- dt_qubs %>%
 
 # Création d'un dataframe avec l'ensemble des url des photos obligatoires par protocole et par année
 photos <- rbind(dt_aspifaune %>% # url photo Aspifaune
-                  mutate(annee = year(session_date)) %>% select(protocole, annee, url_photo_taxon) %>% 
+                  mutate(annee = lubridate::year(session_date)) %>% select(protocole, annee, url_photo_taxon) %>% 
                   distinct() %>% na.omit(),
                 dt_noctambules %>% # url photo Noctambules
-                  mutate(annee = year(session_date)) %>% select(protocole, annee, url_photo_taxon) %>% 
+                  mutate(annee = lubridate::year(session_date)) %>% select(protocole, annee, url_photo_taxon) %>% 
                   distinct() %>% na.omit(),
                 dt_vers %>% # url photo En quête de Vers
-                  mutate(annee = year(session_date)) %>% select(protocole, annee, url_photo_taxon) %>%
+                  mutate(annee = lubridate::year(session_date)) %>% select(protocole, annee, url_photo_taxon) %>%
                   distinct() %>% na.omit(),
                 dt_escargots %>% # url photo Opération Escargots
-                  mutate(annee = year(session_date)) %>% select(protocole, annee, url_photo_taxon_dessous) %>%
+                  mutate(annee = lubridate::year(session_date)) %>% select(protocole, annee, url_photo_taxon_dessous) %>%
                   rename(url_photo_taxon = url_photo_taxon_dessous) %>% distinct() %>% na.omit()) %>%
   group_by(protocole, annee) %>%
   reframe(nb_photos = n_distinct(url_photo_taxon))
@@ -305,13 +305,13 @@ Sinon je trouve que c'est plus parlant de donner le nombre de nuits différentes
 
 ### Opération escargots
 
-- Nombre total d'individus observés : `r sum(na.omit(as.numeric(dt_escargots$taxon_count)))`
+-   Nombre total d'individus observés : `r sum(na.omit(as.numeric(dt_escargots$taxon_count)))`
 
-- Nombre de taxons différents observés : `r length(unique(na.omit(dt_escargots$taxon)))`
+-   Nombre de taxons différents observés : `r length(unique(na.omit(dt_escargots$taxon)))`
 
-- Nombre de taxons différents observés et validés : `r length(unique(na.omit(dt_escargots %>% filter(taxon_valide == 1) %>% pull(taxon))))`
+-   Nombre de taxons différents observés et validés : `r length(unique(na.omit(dt_escargots %>% filter(taxon_valide == 1) %>% pull(taxon))))`
 
-- Nombre d'abris : `r length(unique(dt_escargots$abri_id))` (`r length(unique(dt_escargots$abri_id[dt_escargots$abri_typ == "Coupelle"]))` Coupelles ; `r length(unique(dt_escargots$abri_id[dt_escargots$abri_typ == "Planche"]))` Planches)
+-   Nombre d'abris : `r length(unique(dt_escargots$abri_id))` (`r length(unique(dt_escargots$abri_id[dt_escargots$abri_typ == "Coupelle"]))` Coupelles ; `r length(unique(dt_escargots$abri_id[dt_escargots$abri_typ == "Planche"]))` Planches)
 
 <br>
 
@@ -330,7 +330,7 @@ Dans le cadre du protocole En quête de vers on totalise `r length(unique(dt_ver
 Ce tableau donne pour chaque protocole le **nombre total** de validations, de suggestions, de ré-identifications et de commentaires sur participations.
 
 ```{r}
-dt_comments <- data.table::fread(here::here("data", "export_qubs_social.csv"))
+dt_comments <- data.table::fread(here::here("data", "export_qubs_comments.csv"))
 
 #ajouter le protocole aux donnees sociales
 ## melt le tableau dt_qubs sur observation_id et session_id 
@@ -435,9 +435,9 @@ DT::datatable(dt_qubs %>% group_by(protocole) %>%
 
 Le tableau ci-dessous fournit, pour chaque taxon de la clé Qubs et pour chaque protocole, le nombre d'identifications validées. Petites précisions :
 
-- Si le chiffre est égal à zéro : le taxon a été identifié dans le cadre du protocole mais n'a pas encore été validé
+-   Si le chiffre est égal à zéro : le taxon a été identifié dans le cadre du protocole mais n'a pas encore été validé
 
-- Si la case est vide (NA) : le taxon n'a pas été identifié dans le cadre du protocole
+-   Si la case est vide (NA) : le taxon n'a pas été identifié dans le cadre du protocole
 
 ```{r}
 ## TOP TAXON
