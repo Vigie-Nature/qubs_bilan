@@ -330,7 +330,7 @@ Dans le cadre du protocole En quête de vers on totalise `r length(unique(dt_ver
 Ce tableau donne pour chaque protocole le **nombre total** de validations, de suggestions, de ré-identifications et de commentaires sur participations.
 
 ```{r}
-dt_comments <- data.table::fread(here::here("data", "export_qubs_comments.csv"))
+dt_comments <- data.table::fread(here::here("data", "export_qubs_social.csv"))
 
 #ajouter le protocole aux donnees sociales
 ## melt le tableau dt_qubs sur observation_id et session_id 
